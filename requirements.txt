@@ -1,0 +1,21 @@
+# Core (no heavy deps required for solfege engine / minimal MusicXML I/O)
+# -- src/core/* only needs the Python standard library.
+
+# UI
+streamlit>=1.30
+
+# Richer MusicXML parsing (optional; enables load_via_music21 in
+# src/core/musicxml_loader.py). Also useful later for real score rendering
+# via music21 -> Lilypond/MuseScore.
+music21>=9.1
+
+# OCR / OMR helpers
+pdf2image>=1.17      # render PDF pages to images (needed for image-based OMR backends)
+Pillow>=10.0
+
+# Optional OMR backend (pure Python, deep-learning based, no Java needed).
+# Downloads model weights on first run -- needs internet once.
+# oemer>=0.1.6
+
+# Testing
+pytest>=8.0

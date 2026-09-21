@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# OMR / build scratch output (large binaries, logs, page renders)
+build/
+build_audiveris_*.txt
+
+# OMR intermediate books (multi-MB; regenerate from PDFs)
+*.omr
+
+# Editors / OS
+.vscode/
+.agents/
+.DS_Store
+Thumbs.db

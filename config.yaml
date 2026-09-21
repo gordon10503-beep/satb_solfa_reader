@@ -1,0 +1,20 @@
+# Draft configuration for the SATB So-Fa Score Reader.
+# Extend as the OMR + rendering pipeline gets wired in.
+
+omr:
+  preferred_backend: audiveris   # "audiveris" or "oemer"
+  audiveris_cmd: "C:/Program Files/Audiveris/Audiveris.exe"   # full path; the MSI does not add itself to PATH
+  dpi_for_image_backends: 300
+
+solfege:
+  default_mode: movable          # "movable" or "fixed"
+  minor_uses_do: false          # Do-based minor in movable mode (default is La-based minor)
+  avoid_si_clash: false          # use "Se" instead of "Si" for raised 5th degree
+  fixed_chromatic_labels: false  # show Do#/Reb-style detail in fixed-do mode
+
+ui:
+  default_visible_parts: [S, A, T, B]
+
+paths:
+  scores_dir: assets/scores
+  ocr_output_dir: build/ocr_output
