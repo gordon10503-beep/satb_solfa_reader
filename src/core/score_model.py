@@ -73,7 +73,9 @@ class Note:
 
     @property
     def midi(self) -> int:
-        return 12 * (self.octave + 1) + self.pitch_class
+        # Do not wrap the accidental at octave boundaries: B#4 is C5,
+        # whereas Cb4 is B3.
+        return 12 * (self.octave + 1) + self.STEP_TO_PC[self.step] + self.alter
 
 
 @dataclass

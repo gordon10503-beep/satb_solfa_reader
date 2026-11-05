@@ -1,0 +1,5 @@
+FluidR3 GM soundfont, by Frank Wen. MP3 sample conversion by Benjamin Gleitzman (midi-js-soundfonts).
+Source: https://github.com/gleitz/midi-js-soundfonts
+License: Creative Commons Attribution 3.0 US
+https://creativecommons.org/licenses/by/3.0/us/
+Samples extracted into JSON without audio modification.

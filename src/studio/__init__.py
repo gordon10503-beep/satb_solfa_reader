@@ -1,0 +1,1 @@
+"""Local Solfa Studio application."""

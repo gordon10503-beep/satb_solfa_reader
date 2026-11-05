@@ -16,3 +16,6 @@ build_audiveris_*.txt
 .agents/
 .DS_Store
 Thumbs.db
+
+# Local score library, original scans and revision history
+data/

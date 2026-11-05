@@ -1,5 +1,7 @@
 # Quick Start
 
+For the new **Solfa Studio**, double-click `Start Studio.cmd`. See [the Studio guide](docs/STUDIO.md). The instructions below describe the legacy Streamlit app.
+
 Get the SATB So-Fa Score Reader running locally in about five minutes.
 
 ## 1. Prerequisites

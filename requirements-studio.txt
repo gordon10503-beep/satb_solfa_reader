@@ -1,0 +1,3 @@
+# Local notation engine; includes engraving fonts and needs no CDN.
+verovio==5.7.0
+defusedxml==0.7.1

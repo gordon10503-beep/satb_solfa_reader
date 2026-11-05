@@ -1,4 +1,8 @@
-# SATB So-Fa Score Reader (draft)
+# Solfa Studio / SATB So-Fa Score Reader
+
+**The new local workspace is ready to try:** double-click `Start Studio.cmd`, or run `.venv\Scripts\python.exe -m src.studio.server`. It opens on port 8873 with real notation, scan import, sol-fa, composition, layered playback, scrolling, metronome, keyboard, collections and bookmarks. See [Studio guide](docs/STUDIO.md) for installation, workflows and current limitations.
+
+The text below documents the original Streamlit scaffold, which remains available.
 
 A tool for choir members to read SATB scores with **so-fa (solfège) names**
 printed above the staff, with:
