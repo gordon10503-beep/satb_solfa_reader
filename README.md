@@ -1,145 +1,51 @@
-# Solfa Studio / SATB So-Fa Score Reader
+# Solfa Studio
 
-**The new local workspace is ready to try:** double-click `Start Studio.cmd`, or run `.venv\Scripts\python.exe -m src.studio.server`. It opens on port 8873 with real notation, scan import, sol-fa, composition, layered playback, scrolling, metronome, keyboard, collections and bookmarks. See [Studio guide](docs/STUDIO.md) for installation, workflows and current limitations.
+A local, browser-based music workspace for reading, checking, composing and rehearsing scores. Solfa Studio combines editable MusicXML notation with the original imported PDF, so lyrics and markings remain visible while you review recognition.
 
-The text below documents the original Streamlit scaffold, which remains available.
+## Get started
 
-A tool for choir members to read SATB scores with **so-fa (solfège) names**
-printed above the staff, with:
+On Windows, install Python and double-click **Start Studio.cmd**. The launcher creates a virtual environment, installs the Studio dependencies and opens the local workspace at `http://127.0.0.1:8873`.
 
-- ✅ Per-part show/hide toggles (Soprano / Alto / Tenor / Bass)
-- ✅ A switch between **Movable-do 首調** and **Fixed-do 固定調**
-- ✅ Automatic handling of **key changes** mid-piece
-- ✅ OCR/OMR pipeline hook to turn a scanned/exported PDF score into
-  MusicXML, which the solfège engine then annotates
+To install and run manually from PowerShell:
 
-This is a **draft scaffold** meant to be continued by you + your coding
-agent. The music-theory core (solfège engine, key-change tracking, SATB
-role detection) is fully implemented and unit-tested. The OCR step and the
-graphical score renderer are stubbed out with clear interfaces, because
-this sandbox has no internet/Java to run real OMR engines -- see
-`docs/ROADMAP.md`.
-
-## What's already working
-
-| Component | Status | File |
-|---|---|---|
-| Fixed-do / Movable-do syllable engine | ✅ Done, tested | `src/core/solfege.py` |
-| Key-change tracking across measures | ✅ Done, tested | `src/core/score_model.py`, `src/core/key_tracker.py` |
-| SATB part-name auto-detection | ✅ Done, tested | `src/core/key_tracker.py::guess_satb_role` |
-| Minimal MusicXML reader (stdlib only) | ✅ Done, tested | `src/core/musicxml_loader.py` |
-| Optional music21-based reader | 🟡 Stub (needs `pip install music21`) | `src/core/musicxml_loader.py::load_via_music21` |
-| OMR pipeline (PDF → MusicXML) | 🟡 Interface + adapters written, needs Audiveris/oemer installed | `src/ocr/omr_pipeline.py` |
-| Streamlit UI (toggles + switches + preview) | ✅ Draft working (text/HTML preview) | `src/ui/app.py` |
-| Real staff-image / notation renderer with overlay | ❌ Not started | see `docs/ROADMAP.md` |
-| Round-trip: write solfège back into MusicXML as lyrics | ❌ Stub only | `src/core/musicxml_loader.py::write_solfege_as_lyrics` |
-
-## Quick start
-
-```bash
-cd satb_solfa_reader
-pip install -r requirements.txt
-
-# Run the unit tests for the solfège/key-change engine (no extra deps needed)
-python tests/test_solfege.py
-
-# Launch the draft UI (uses the bundled sample MusicXML, or upload your own)
-streamlit run src/ui/app.py
+```powershell
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements-studio.txt
+.venv\Scripts\python.exe -m src.studio.server
 ```
 
-The UI currently accepts **MusicXML** input. Your uploaded PDF scores are
-stored in `assets/scores/` for OCR pipeline testing:
+Use `--port 8874` to choose another port or `--data-dir PATH` to use another library. MusicXML reading and playback work locally. PDF and image recognition additionally require [Audiveris](https://github.com/Audiveris/audiveris) installed and available on PATH, or configured using `AUDIVERIS_CMD`.
 
-- `assets/scores/Finale-Zhong-Qu-SATB-and-piano.pdf`
-- `assets/scores/In Time Of Silver Rain — Choral.pdf`
+## Features
 
-To turn one of these into MusicXML you'll need an OMR engine installed on
-your machine (not possible inside this drafting sandbox — no internet/Java
-here). Recommended: install [Audiveris](https://github.com/Audiveris/audiveris)
-(free, Java-based, best accuracy for engraved/Finale-exported scores) and
-run it via the **two-phase book round-trip** (see QUICKSTART.md for why —
-the inline one-step export can corrupt part assembly):
+- **Read:** import MusicXML/MXL and scanned PDFs or images; show movable-do, fixed-do or note names such as C4 above the digital notation. View the original PDF alongside the recognition, with one- or two-page layouts and selectable scrolling direction.
+- **Practice:** play individual parts with layered sampled Piano, Flute, Strings, Organ or Bell sounds; adjust mix, tempo and volume; follow the current digital bar; use the metronome and scrollable keyboard.
+- **Compose:** start a score, enter notes with the visual composer, and edit supported notes and bars. Advanced MusicXML editing and export are also available.
+- **Check score:** compare the original and recognized notation, inspect structural warnings, and mark a score reviewed. Original PDFs retain their filenames and support saved pen and highlighter annotations.
+- **Organize:** group scores into collections, bookmark bars, and use the score menu or right-click to rename, duplicate, export, share, or move scores to trash.
+- **Conductor preview:** optionally show a local camera window during practice.
 
-```bash
-audiveris -batch -save  -output build/ocr_output "assets/scores/Finale-Zhong-Qu-SATB-and-piano.pdf"
-audiveris -batch -export build/ocr_output/Finale-Zhong-Qu-SATB-and-piano.omr
+## Scanning and accuracy
+
+Recognition is a draft: check parts, bar alignment, time signatures, notes, rhythms and lyrics against the original before relying on playback. Select music pages to skip covers. The optional SATB + piano preset consolidates compatible part assignments; use Automatic for other layouts. Structural checks flag possible problems but cannot establish that every note is correct. Playback highlighting currently applies to the **digital notation**, not to matching locations on the original PDF.
+
+The optional [`score-layout-preflight` skill](skills/score-layout-preflight/SKILL.md) helps an assistant map systems and parts, review proposed boundaries and export checked system crops. It supports arbitrary ensembles, including orchestral layouts. It is not connected to the Studio Scan button, and its effect on recognition accuracy has not yet been benchmarked. See the [recognition roadmap](docs/RECOGNITION_ROADMAP.md).
+
+## Local data and limitations
+
+Scores, original imports, annotations and history are stored under `data/`, which is excluded from Git. Back up that directory to preserve your library. The server listens on the local computer; this prototype is not yet a hosted service or packaged iOS/Android app. Some complex notation, repeat navigation and expressive playback require manual review. See the [Studio guide](docs/STUDIO.md) and [platform plan](docs/PLATFORM.md) for details.
+
+## Tests and project structure
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests -q
+node tests/test_sampled_audio.cjs
 ```
 
-Or equivalently, from Python, `AudiverisBackend.convert()` runs both
-phases (`src/ocr/omr_pipeline.py`). That produces a `.mxl`/`.xml` file you
-can upload straight into the Streamlit app.
+- `src/studio/` — local server, library, notation, playback and interface
+- `src/core/` — solfège and MusicXML logic
+- `skills/score-layout-preflight/` — optional layout-assistance skill
+- `tests/` — notation, timing, persistence and audio-loading checks
+- `src/ui/` and `src/ocr/` — earlier Streamlit reader and OMR adapters
 
-### OMR output caveats (learned the hard way)
-
-- **Always verify before trusting**: open the `.mxl` and check the part
-  count/names, then spot-check a few notes per part against the PDF.
-  A PDF-vector ground-truth checker pattern is described in
-  `docs/OMR_NOTES.md`.
-- Audiveris 5.11 writes garbled part names for OCR'd labels (`S.`, `A,`,
-  `_m`, ...). The app's `assign_satb_roles()` handles this: OCR'd
-  fragments like `A,`/`T.` still resolve via name aliases, four
-  generically-named parts get positional S/A/T/B, and piano-ish parts
-  are excluded from the fallback.
-- Measure numbers shift by +1 after repeat sections (pickup renumbered),
-  tenor pitches are exported as written (treble-clef reading, not
-  8vb-sounding), and repeated noteheads are sometimes merged/dropped.
-
-## How the solfège logic works
-
-- **Fixed-do 固定調** (`src/core/solfege.py::fixed_do_name`): the syllable
-  is tied to the absolute pitch — C is always Do, G is always Sol —
-  regardless of key. Enable "show sharp/flat detail" to see e.g. `Fa#/Solb`
-  instead of collapsing to the natural-note syllable.
-- **Movable-do 首調** (`::movable_do_name`): the syllable is relative to
-  the *current key's tonic*, which is looked up per-measure via
-  `Score.key_at_measure()`. So if the key changes from C major to D major
-  partway through, the note D switches from being sung "Re" to being sung
-  "Do" automatically. Chromatic (non-diatonic) notes get the standard
-  raised/lowered solfa names (Fi, Di, Ri, Si, Li / Te, Le, Se, Me, Ra).
-- Minor keys default to **La-based minor** (the HK/TW convention): the
-  minor tonic itself is sung "La" — in A minor the naturals sing
-  La Ti Do Re Mi Fa Sol. Tick the "Do-based minor" checkbox in the UI
-  (`minor_uses_do=True`) to anchor **Do** at the minor tonic instead.
-- Flat notes get their proper lowered names: B♭ in C major is "Te"
-  (not "Li"), D♭ is "Ra". Raised notes keep the "i"-ending names
-  (F# = "Fi"). The direction is chosen from each note's spelling
-  relative to the key signature.
-
-This logic is exercised end-to-end in `tests/test_solfege.py` against a
-hand-built sample score with a mid-piece key change
-(`tests/sample_data/satb_sample_with_key_change.musicxml`) — all 10 tests
-pass.
-
-## Project layout
-
-```
-satb_solfa_reader/
-├── assets/scores/          # your uploaded PDF scores, for OCR pipeline testing
-├── config.yaml             # defaults for OMR backend, solfa mode, visible parts
-├── requirements.txt
-├── src/
-│   ├── core/                # pure music-theory logic (no heavy deps)
-│   │   ├── score_model.py     # Score / Part / Measure / Note / KeySignature dataclasses
-│   │   ├── solfege.py          # fixed-do / movable-do syllable engine
-│   │   ├── key_tracker.py      # SATB role detection + per-note annotation pass
-│   │   └── musicxml_loader.py  # stdlib MusicXML reader (+ optional music21 loader)
-│   ├── ocr/
-│   │   └── omr_pipeline.py     # OMR backend interface: Audiveris / oemer adapters
-│   ├── render/
-│   │   └── text_renderer.py    # interim text/HTML preview (real staff renderer = TODO)
-│   └── ui/
-│       └── app.py              # Streamlit app: SATB toggles, movable/fixed switch
-├── tests/
-│   ├── test_solfege.py
-│   └── sample_data/satb_sample_with_key_change.musicxml
-└── docs/
-    ├── ARCHITECTURE.md
-    └── ROADMAP.md
-```
-
-## Next steps for you / your agent
-
-See `docs/ROADMAP.md` for a prioritized list — the two biggest remaining
-pieces are (1) actually running an OMR engine on your real scores and
-(2) rendering solfège text visually positioned above noteheads on the
-score image, rather than the current text/HTML table preview.
+The earlier Streamlit prototype remains available separately; see [QUICKSTART.md](QUICKSTART.md). Bundled audio and PDF viewer components retain their license notices in `src/studio/static/`.
