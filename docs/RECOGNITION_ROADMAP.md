@@ -29,3 +29,9 @@ A model prompt or skill can orchestrate this workflow, but does not itself impro
 Benchmark candidates on the same permission-cleared choir pages with manually verified MusicXML and page coordinates. Measure bar/staff grouping, missing/extra notes, pitch, duration, lyric association and manual repair time separately. Piano benchmarks alone do not establish SATB + Chinese/Jyutping lyric accuracy.
 
 Fine-tuning a pretrained layout or recognition model may help with this repertoire once enough verified examples exist. Start with layout and part association; compare on held-out entire scores/publishers, not random crops from training scores. User corrections can become training examples only after verification and explicit dataset opt-in. Automatically training on unverified scans risks reinforcing their mistakes. Training from scratch is not the first recommended experiment.
+
+## Reusable assistant skill
+
+`skills/score-layout-preflight/SKILL.md` now supplies an assistant-driven layout workflow for arbitrary ensembles, including orchestral systems. Its local PyMuPDF helper renders page images, validates a model-proposed layout manifest, produces review overlays, and exports visually checked complete-system crops with source coordinates. Invoke it as `$score-layout-preflight` in a compatible assistant after installing that folder in its skills directory.
+
+This is not yet an automatic Studio scanner option. No API client or paid model call is included, and recognition accuracy has not been benchmarked. Geometry/helper checks pass; arbitrary ensemble presets, interactive box editing in Studio, staff-group crop reassembly and PDF playback mapping remain future application work. The dated model recommendation and assumed-token cost calculation live in the skill's references/model-notes.md.

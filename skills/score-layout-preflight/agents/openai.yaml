@@ -1,0 +1,4 @@
+interface:
+  display_name: "Score Layout Preflight"
+  short_description: "Map score systems and review OMR crop boundaries"
+  default_prompt: "Use $score-layout-preflight to inspect this score PDF, map complete systems and parts, and prepare reviewed crops for OMR."
