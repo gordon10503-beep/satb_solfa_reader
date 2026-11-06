@@ -12,3 +12,11 @@ Studio remains a prototype. These are acceptance criteria, not implemented-featu
 6. Release criteria: representative verified score corpus, end-to-end editing/playback tests, performance budgets, packaging/update strategy, dependency-license audit and platform-specific tests. No production-ready label until these gates are met.
 
 Current increment: clickable scan ensemble cards with guarded staff grouping; launch avoids silently reusing an outdated backend; a controlled full-page versus system-crop recognition trial. Full interactive layout editing and the broader notation palette remain unimplemented.
+
+## Implemented editor increment
+
+Compose now has a selection-aware notation palette for staccato, tenuto, accent and fermata. Symbols toggle on the selected note (fermata also supports rests), preserve unrelated notation and save through the normal revision/undo path. Expressive playback of these symbols is not implemented. Instrument names can be edited while retaining part IDs and notes.
+
+Phrase drafts can be explicitly saved and restored per score in the current browser. Restoration checks that the original part and bar still exist and does not apply the phrase to MusicXML automatically. This is manual draft recovery, not full crash recovery or cross-device sync. Palette, pitch and draft controls have larger touch targets on coarse-pointer devices; real iPad verification is still outstanding.
+
+Regression coverage checks symbol toggling, preservation of lyrics/slurs/durations, part identity and persistent undo. Instrument reordering/grouping, complete palettes, multivoice editing and the other release gates above remain unfinished.

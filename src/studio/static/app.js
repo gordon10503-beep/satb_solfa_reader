@@ -60,7 +60,7 @@ async function openScore(id, preserve=false) {
   if(generation!==state.openGeneration)return;
   state.score=result;
   $("reader-format").querySelectorAll("option").forEach(o=>{if(o.value!=="notation")o.disabled=result.sourceType!=="application/pdf";});
-  $("reader-format").value=result.sourceType==="application/pdf"?"compare":"notation";state.position=Math.min(oldPosition,result.duration);state.selected=null;
+  $("reader-format").value=result.sourceType==="application/pdf"?"compare":"notation";state.position=Math.min(oldPosition,result.duration);state.selected=null;document.querySelectorAll("[data-symbol]").forEach(b=>b.disabled=true);
   state.mixer=result.parts.map((p,i)=>({...{sounds:["Piano"],volume:.7,mute:false,solo:false},...(result.meta.mixer?.[i]||{})}));
   if(!preserve) {
     const practice=result.meta.practice||{};
@@ -119,13 +119,14 @@ function setView(view) {
 function selectNote(id) {
   const n=state.score.notes[id];if(!n)return;
   document.querySelectorAll(".selected-note").forEach(el=>el.classList.remove("selected-note"));
+  document.querySelectorAll("[data-symbol]").forEach(b=>b.disabled=!n.pitched && b.dataset.symbol!=="fermata");
   $(id)?.classList.add("selected-note");state.selected=id;state.currentMeasure=n.measure;
   $("note-details").open=true;
   $("note-step").value=n.step;$("note-alter").value=n.alter;$("note-octave").value=n.octave;$("note-lyric").value=n.lyric;
   $("note-selection").textContent=`${state.score.parts[n.part].name} · bar ${n.measure+1} · ${n.duration} quarter beats`;
   $("apply-note").disabled=!n.pitched;$("compose-part").value=n.part;fillBars(n.measure);setView("compose");
 }
-function fillComposer() { $("compose-part").innerHTML=state.score.parts.map((p,i)=>`<option value="${i}">${esc(p.name)}</option>`).join("");fillBars(state.currentMeasure); }
+function fillComposer() { renderInstrumentNames(); $("compose-part").innerHTML=state.score.parts.map((p,i)=>`<option value="${i}">${esc(p.name)}</option>`).join("");fillBars(state.currentMeasure); }
 function fillBars(index=0) {
   const p=state.score.parts[Number($("compose-part").value)||0];
   $("compose-bar").innerHTML=p.measures.map((m,i)=>`<option value="${i}">${esc(m.number)}</option>`).join("");
@@ -516,4 +517,35 @@ on("scan-form","submit",async e=>{
     const result=await api('/api/rescan',{id:pendingScan,options});$('scan-dialog').close();
     if(result.job)syncScanJobs([{job:result.job,id:result.id,name:state.score.title,status:'running',stage:0,message:'Preparing rescan',elapsed:0}]);else toast('Audiveris is unavailable.');
   }else{const file=pendingScan;pendingScan=null;$('scan-dialog').close();await importFile(file,options);}
+});
+
+function renderInstrumentNames(){
+  $("instrument-names").replaceChildren();
+  state.score.parts.forEach((part,index)=>{
+    const row=document.createElement('div');row.className='field-row';
+    const input=document.createElement('input');input.value=part.name;input.maxLength=100;input.setAttribute('aria-label',`Name for part ${index+1}`);
+    const button=document.createElement('button');button.className='button small';button.textContent='Rename';
+    button.onclick=run(()=>edit('rename-part',{part:index,name:input.value}));row.append(input,button);$('instrument-names').append(row);
+  });
+}
+document.querySelectorAll('[data-symbol]').forEach(button=>button.onclick=run(async()=>{
+  if(!state.selected)return;
+  const selected=state.selected;
+  await edit('symbol',{nid:selected,symbol:button.dataset.symbol});
+  if(state.score.notes[selected])selectNote(selected);
+}));
+
+on('save-phrase-draft','click',()=>{
+  if(!state.score)return;
+  localStorage.setItem('solfa-phrase-'+state.score.id,JSON.stringify({phrase:$('phrase').value,partId:state.score.parts[+$('compose-part').value].id,bar:+$('compose-bar').value}));
+  toast('Draft saved in this browser. Restore it after reopening this score.');
+});
+on('restore-phrase-draft','click',()=>{
+  if(!state.score)return;
+  const raw=localStorage.getItem('solfa-phrase-'+state.score.id);
+  if(!raw){toast('No saved draft for this score.');return;}
+  const draft=JSON.parse(raw), part=state.score.parts.findIndex(p=>p.id===draft.partId);
+  if(part<0 || !state.score.parts[part].measures[draft.bar])throw new Error('The original draft part or bar no longer exists.');
+  if($('phrase').value.trim() && !confirm('Replace the current unsaved phrase with the saved draft?'))return;
+  $('compose-part').value=part;fillBars(draft.bar);$('phrase').value=draft.phrase;renderDraft();toast('Draft restored; review it before replacing the score bar.');
 });

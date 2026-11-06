@@ -452,3 +452,39 @@ def edit_meter(data, measure, beats, beat_type, part=0, all_parts=True):
         index = next((i for i,e in enumerate(a) if e.tag not in ("divisions", "key")), len(a))
         a.insert(index, t)
     return xml_bytes(root)
+
+
+def edit_symbol(data, nid, symbol):
+    root = read_xml(data)
+    source = inspect(root)["notes"].get(nid)
+    if source is None: raise ValueError("Select a note first.")
+    if symbol not in ("staccato", "tenuto", "accent", "fermata"):
+        raise ValueError("Unsupported symbol.")
+    note = root.findall("part")[source["part"]].findall("measure")[source["measure"]].findall("note")[source["index"]]
+    if not source["pitched"] and symbol != "fermata":
+        raise ValueError("This articulation needs a pitched note.")
+    notation = note.find("notations")
+    if notation is None: notation = child(note, "notations")
+    parent = notation
+    if symbol != "fermata":
+        parent = notation.find("articulations")
+        if parent is None: parent = child(notation, "articulations")
+    existing = parent.findall(symbol)
+    if existing:
+        for item in existing: parent.remove(item)
+    else: child(parent, symbol)
+    return xml_bytes(root)
+
+
+def rename_part(data, part, name):
+    name = str(name).strip()
+    if not name or len(name) > 100: raise ValueError("Use a part name between 1 and 100 characters.")
+    root = read_xml(data)
+    parts = root.findall("part")
+    if not 0 <= part < len(parts): raise ValueError("Part not found.")
+    definition = next(p for p in root.findall("part-list/score-part") if p.get("id") == parts[part].get("id"))
+    label = definition.find("part-name")
+    if label is None: label = child(definition, "part-name")
+    label.text = name
+    for abbreviation in definition.findall("part-abbreviation"): abbreviation.text = name
+    return xml_bytes(root)

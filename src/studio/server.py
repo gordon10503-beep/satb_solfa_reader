@@ -25,7 +25,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from .document import (MAX_BYTES, append_bar, edit_note, edit_meter, engrave, inspect,
+from .document import (MAX_BYTES, append_bar, edit_symbol, rename_part, edit_note, edit_meter, engrave, inspect,
                        new_score, read_xml, replace_bar, xml_bytes)
 
 from .scan_options import selected_pages, repair_satb_book
@@ -203,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path.path == "/api/library":
                 return self.respond({"scores": self.server.library.list(), "scanner": bool(audiveris_path()),
-                                     "storage": str(self.server.library.path), "build": "2026-11-06-layout",
+                                     "storage": str(self.server.library.path), "build": "2026-11-06-editor",
                                      "scanJobs": [{"job": job, **scan_status(self.server, job)} for job in list(self.server.jobs)]})
             if path.path.startswith("/api/job/"):
                 return self.respond(scan_status(self.server, path.path.split("/")[-1]))
@@ -284,6 +284,8 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "/api/edit":
                 action = payload["action"]
                 if action == "note": data = edit_note(row["xml"], **payload["values"])
+                elif action == "symbol": data = edit_symbol(row["xml"], **payload["values"])
+                elif action == "rename-part": data = rename_part(row["xml"], **payload["values"])
                 elif action == "bar": data = replace_bar(row["xml"], **payload["values"])
                 elif action == "append": data = append_bar(row["xml"])
                 elif action == "meter": data = edit_meter(row["xml"], **payload["values"])
@@ -359,7 +361,7 @@ def start_or_reuse(port, library, open_browser=True):
                 is_studio = response.headers.get("Server", "").startswith("SolfaStudio/")
                 info = json.load(response)
             same_library = Path(info.get("storage", "")).resolve() == library.path.resolve()
-            if is_studio and same_library and info.get("build") != "2026-11-06-layout":
+            if is_studio and same_library and info.get("build") != "2026-11-06-editor":
                 print("An older Studio is running; opening the updated version on the next port.", flush=True)
                 return start_or_reuse(port + 1, library, open_browser)
             if is_studio and same_library:

@@ -378,3 +378,36 @@ def test_ensemble_presets_preserve_staff_counts(tmp_path, layout, counts):
         root = ET.fromstring(z.read('book.xml'))
     assert [int(p.get('staff-count')) for p in root.findall('score/logical-part')] == counts
     assert book.with_suffix('.original.omr').exists()
+
+@pytest.mark.parametrize('symbol', ['staccato', 'tenuto', 'accent', 'fermata'])
+def test_symbol_toggle_preserves_timing_and_lyrics(symbol):
+    from src.studio.document import edit_symbol
+    original = melody()
+    root = read_xml(original)
+    note = root.find('part/measure/note')
+    child(child(note, 'lyric'), 'text', 'hello')
+    child(child(note, 'notations'), 'slur', type='start', number='1')
+    original = xml_bytes(root)
+    edited = edit_symbol(original, 'ss-p0-m0-n0', symbol)
+    changed = read_xml(edited).find('part/measure/note')
+    assert changed.findtext('duration') == note.findtext('duration')
+    assert changed.findtext('lyric/text') == 'hello'
+    assert changed.find('notations/slur') is not None
+    assert changed.find('.//' + symbol) is not None
+    reverted = read_xml(edit_symbol(edited, 'ss-p0-m0-n0', symbol))
+    assert reverted.find('.//' + symbol) is None
+    assert reverted.find('.//slur') is not None
+
+
+def test_rename_preserves_part_identity_and_undo(tmp_path):
+    from src.studio.document import rename_part
+    lib = Library(tmp_path / 'rename.sqlite3')
+    original = melody()
+    sid = lib.add(original)
+    row = lib.get(sid)
+    edited = rename_part(row['xml'], 0, 'Solo flute')
+    assert ET.tostring(read_xml(edited).find('part')) == ET.tostring(read_xml(row['xml']).find('part'))
+    saved = lib.update(sid, row['revision'], data=edited)
+    assert inspect(read_xml(saved['xml']))['parts'][0]['name'] == 'Solo flute'
+    restored = lib.update(sid, saved['revision'], undo=True)
+    assert restored['xml'] == row['xml']
