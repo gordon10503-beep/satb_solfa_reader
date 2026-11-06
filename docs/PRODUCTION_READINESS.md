@@ -20,3 +20,11 @@ Compose now has a selection-aware notation palette for staccato, tenuto, accent 
 Phrase drafts can be explicitly saved and restored per score in the current browser. Restoration checks that the original part and bar still exist and does not apply the phrase to MusicXML automatically. This is manual draft recovery, not full crash recovery or cross-device sync. Palette, pitch and draft controls have larger touch targets on coarse-pointer devices; real iPad verification is still outstanding.
 
 Regression coverage checks symbol toggling, preservation of lyrics/slurs/durations, part identity and persistent undo. Instrument reordering/grouping, complete palettes, multivoice editing and the other release gates above remain unfinished.
+
+## Responsiveness and control density
+
+Playback highlights use an incremental event cursor and binary measure lookup. Only changed note/bar classes are updated; visual updates are throttled to roughly 20 Hz while audio scheduling remains independent. The cursor regression test covers forward/backward seeks, repeated note IDs and overlapping long notes. Its synthetic timing measures lookup only, not end-to-end browser or iPad performance.
+
+Score format and playback remain visible. Label/zoom settings are grouped under Display settings, and the full phrase composer is under Write or replace a bar. Selected-note editing opens directly when a note is chosen. These changes reduce simultaneous controls, but real tablet usability and frame-time profiling remain release requirements.
+
+Run `node tests/test_playback_cursor.cjs` alongside the existing tests.

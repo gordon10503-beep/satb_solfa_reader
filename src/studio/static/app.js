@@ -58,7 +58,7 @@ async function openScore(id, preserve=false) {
   busy(true,"Engraving your score…");
   const result=await api(`/api/score/${id}?mode=${$("solfa-mode").value}&minor=${$("minor-do").checked}&solfa=${$("solfa").checked}`);
   if(generation!==state.openGeneration)return;
-  state.score=result;
+  state.score=result;state.playbackCursor=new PlaybackCursor(result.events,result.measureTimes);activeHighlightIds=new Set();activeBarElement=null;
   $("reader-format").querySelectorAll("option").forEach(o=>{if(o.value!=="notation")o.disabled=result.sourceType!=="application/pdf";});
   $("reader-format").value=result.sourceType==="application/pdf"?"compare":"notation";state.position=Math.min(oldPosition,result.duration);state.selected=null;document.querySelectorAll("[data-symbol]").forEach(b=>b.disabled=true);
   state.mixer=result.parts.map((p,i)=>({...{sounds:["Piano"],volume:.7,mute:false,solo:false},...(result.meta.mixer?.[i]||{})}));
@@ -286,17 +286,19 @@ function pause() {
 function updateTransport() {
   const p=state.score?position():0;$("time-current").textContent=time(p/state.speed);$("time-total").textContent=time((state.score?.duration||0)/state.speed);
   $("seek").max=state.score?.duration||1;$("seek").value=p;
-  updatePlaybackHighlight(p);
+  state.playbackMeasure=updatePlaybackHighlight(p);
 }
+let activeHighlightIds=new Set(),activeBarElement=null;
 function updatePlaybackHighlight(p) {
-  document.querySelectorAll('.playing-note,.playing-bar').forEach(el=>el.classList.remove('playing-note','playing-bar'));
   if(!state.score)return;
-  const measure=[...state.score.measureTimes].reverse().find(m=>m.time<=p);
-  if(measure){
-    state.currentMeasure=measure.measure;$(measure.id)?.classList.add('playing-bar');
-    $('playback-location').textContent=`Bar position ${measure.measure+1}${state.score.meta.reviewed?'':' · draft'}`;
-  }
-  state.score.events.filter(e=>e.time<=p && e.time+e.duration>p).forEach(e=>$(e.id)?.classList.add('playing-note'));
+  const {ids,measure}=state.playbackCursor.at(p);
+  for(const id of activeHighlightIds)if(!ids.has(id))$(id)?.classList.remove('playing-note');
+  for(const id of ids){const el=$(id);if(el&&!el.classList.contains('playing-note'))el.classList.add('playing-note');}
+  activeHighlightIds=ids;
+  const bar=measure?$(measure.id):null;
+  if(bar!==activeBarElement){activeBarElement?.classList.remove('playing-bar');bar?.classList.add('playing-bar');activeBarElement=bar;}
+  if(measure){state.currentMeasure=measure.measure;const label=`Bar position ${measure.measure+1}${state.score.meta.reviewed?'':' · draft'}`;if($('playback-location').textContent!==label)$('playback-location').textContent=label;}
+  return measure;
 }
 function scrollToElement(el) {
   const pane=$("score-scroll"), rect=el.getBoundingClientRect(), parent=pane.getBoundingClientRect();
@@ -305,10 +307,10 @@ function scrollToElement(el) {
 let lastVisual=-1,lastFollow="";
 function animate() {
   if(state.playing&&state.score) {
-    updateTransport();const p=position();
+    const p=position();
     if(Math.abs(p-lastVisual)>.045) {
-      lastVisual=p;
-      const measure=[...state.score.measureTimes].reverse().find(m=>m.time<=p);
+      lastVisual=p;updateTransport();
+      const measure=state.playbackMeasure;
       if(measure)state.currentMeasure=measure.measure;
       if($("follow").checked && $("reader-format").value!=="pdf") {
         const pane=$("score-scroll");
