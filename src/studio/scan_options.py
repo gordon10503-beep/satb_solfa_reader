@@ -21,17 +21,19 @@ def selected_pages(value):
     return [str(p) for p in sorted(pages)]
 
 
-def repair_satb_book(path):
+def repair_satb_book(path, layout="satb-piano"):
     """Only for an explicitly selected five-part SATB + piano layout.
 
     Refuse mismatched systems rather than deleting or guessing voice content.
     Keep the untouched OMR book for investigation.
     """
+    names = {"satb-piano": ("Soprano", "Alto", "Tenor", "Bass", "Piano"), "satb": ("Soprano", "Alto", "Tenor", "Bass"), "piano": ("Piano",)}[layout]
+    counts = [2 if name == "Piano" else 1 for name in names]
     with zipfile.ZipFile(path) as source:
         root = ET.fromstring(source.read("book.xml"))
         systems = root.findall("sheet/page/system")
-        if not systems or any([len(p.findall("staff-configuration")) for p in s.findall("part")] != [1,1,1,1,2] for s in systems):
-            raise ValueError("SATB + piano preset needs four single-staff voices and one two-staff piano in every system. Retry Automatic, or correct staff grouping in Audiveris.")
+        if not systems or any([len(p.findall("staff-configuration")) for p in s.findall("part")] != counts for s in systems):
+            raise ValueError("Selected ensemble does not match the detected staves in every system. Retry Automatic, or correct staff grouping in Audiveris.")
         for system in systems:
             for i, part in enumerate(system.findall("part")):
                 part.set("logical-id", str(i+1))
@@ -40,8 +42,8 @@ def repair_satb_book(path):
             raise ValueError("The SATB preset currently supports a single movement. Use Automatic for this book.")
         score = scores[0]
         for part in score.findall("logical-part"): score.remove(part)
-        for i,name in enumerate(("Soprano", "Alto", "Tenor", "Bass", "Piano")):
-            count = 2 if i == 4 else 1
+        for i,name in enumerate(names):
+            count = counts[i]
             part = ET.Element("logical-part", {"id": str(i+1), "staff-count": str(count), "name": name})
             for _ in range(count): ET.SubElement(part, "staff-configuration", {"line-count": "5"})
             score.insert(i,part)

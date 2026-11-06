@@ -511,7 +511,7 @@ on("apply-meter","click",()=>edit("meter",{measure:+$("meter-bar").value-1,beats
 let pendingScan=null;
 on("rescan-btn","click",()=>{if(!state.score?.hasSource){toast("No original scan is attached.");return;}pendingScan=state.score.id;$("scan-dialog").showModal();});
 on("scan-form","submit",async e=>{
-  e.preventDefault();const options={pages:$("scan-pages").value,layout:$("scan-ensemble").value};
+  e.preventDefault();const options={pages:$("scan-pages").value,layout:document.querySelector('input[name="scan-ensemble"]:checked').value};
   if(typeof pendingScan==='string'){
     const result=await api('/api/rescan',{id:pendingScan,options});$('scan-dialog').close();
     if(result.job)syncScanJobs([{job:result.job,id:result.id,name:state.score.title,status:'running',stage:0,message:'Preparing rescan',elapsed:0}]);else toast('Audiveris is unavailable.');

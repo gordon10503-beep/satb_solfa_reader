@@ -27,7 +27,7 @@ Use `--port 8874` to choose another port or `--data-dir PATH` to use another lib
 
 ## Scanning and accuracy
 
-Recognition is a draft: check parts, bar alignment, time signatures, notes, rhythms and lyrics against the original before relying on playback. Select music pages to skip covers. The optional SATB + piano preset consolidates compatible part assignments; use Automatic for other layouts. Structural checks flag possible problems but cannot establish that every note is correct. Playback highlighting currently applies to the **digital notation**, not to matching locations on the original PDF.
+Recognition is a draft: check parts, bar alignment, time signatures, notes, rhythms and lyrics against the original before relying on playback. Select music pages to skip covers. Clickable SATB choir, SATB + piano and Piano presets consolidate compatible part assignments; use Automatic for orchestral or changing layouts. Structural checks flag possible problems but cannot establish that every note is correct. Playback highlighting currently applies to the **digital notation**, not to matching locations on the original PDF.
 
 The optional [`score-layout-preflight` skill](skills/score-layout-preflight/SKILL.md) helps an assistant map systems and parts, review proposed boundaries and export checked system crops. It supports arbitrary ensembles, including orchestral layouts. It is not connected to the Studio Scan button, and its effect on recognition accuracy has not yet been benchmarked. See the [recognition roadmap](docs/RECOGNITION_ROADMAP.md).
 
@@ -49,3 +49,5 @@ node tests/test_sampled_audio.cjs
 - `src/ui/` and `src/ocr/` — earlier Streamlit reader and OMR adapters
 
 The earlier Streamlit prototype remains available separately; see [QUICKSTART.md](QUICKSTART.md). Bundled audio and PDF viewer components retain their license notices in `src/studio/static/`.
+
+See [production-readiness criteria](docs/PRODUCTION_READINESS.md) for the MuseScore-inspired editing and reliability work still required before a production release.

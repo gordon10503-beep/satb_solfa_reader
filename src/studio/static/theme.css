@@ -45,3 +45,5 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 
 .playback-bar-marker{fill:#ffdf3929;stroke:#e4ad00;stroke-width:5;pointer-events:none;display:none}.playing-bar>.playback-bar-marker{display:block}.playback-location{font-size:11px;max-width:115px;color:var(--ink)}
 @media print{.playback-bar-marker{display:none!important}}
+
+.ensemble-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;border:0;padding:12px 0}.ensemble-cards label{padding:14px;border:1px solid #ccc;border-radius:10px;cursor:pointer}.ensemble-cards label:has(input:checked){border-color:#245ae8;background:#edf2ff}.ensemble-cards small{margin-top:8px;color:#63708a}

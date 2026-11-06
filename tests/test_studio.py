@@ -290,7 +290,7 @@ def test_scan_page_ranges_and_satb_guard(tmp_path):
     with zipfile.ZipFile(book, "w") as z:
         z.writestr("book.xml", '<book><sheet><page><system><part><staff-configuration/></part></system></page></sheet><score/></book>')
     before = book.read_bytes()
-    with pytest.raises(ValueError, match="four single-staff"):
+    with pytest.raises(ValueError, match="Selected ensemble"):
         repair_satb_book(book)
     assert book.read_bytes() == before
 
@@ -364,3 +364,17 @@ def test_inconsistent_part_numbers_use_explicit_provisional_positions():
     prepare_render_structure(root, info)
     assert all([m.get('number') for m in p.findall('measure')] == ['1', '2', '3'] for p in root.findall('part'))
     assert info['issues'][0]['code'] == 'bar-alignment'
+
+
+@pytest.mark.parametrize("layout,counts", [("satb", [1,1,1,1]), ("piano", [2]), ("satb-piano", [1,1,1,1,2])])
+def test_ensemble_presets_preserve_staff_counts(tmp_path, layout, counts):
+    from src.studio.scan_options import repair_satb_book
+    book = tmp_path / "ensemble.omr"
+    parts = ''.join('<part>' + '<staff-configuration/>' * n + '</part>' for n in counts)
+    with zipfile.ZipFile(book, 'w') as z:
+        z.writestr('book.xml', '<book><sheet><page><system>' + parts + '</system></page></sheet><score/></book>')
+    repair_satb_book(book, layout)
+    with zipfile.ZipFile(book) as z:
+        root = ET.fromstring(z.read('book.xml'))
+    assert [int(p.get('staff-count')) for p in root.findall('score/logical-part')] == counts
+    assert book.with_suffix('.original.omr').exists()

@@ -203,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path.path == "/api/library":
                 return self.respond({"scores": self.server.library.list(), "scanner": bool(audiveris_path()),
-                                     "storage": str(self.server.library.path),
+                                     "storage": str(self.server.library.path), "build": "2026-11-06-layout",
                                      "scanJobs": [{"job": job, **scan_status(self.server, job)} for job in list(self.server.jobs)]})
             if path.path.startswith("/api/job/"):
                 return self.respond(scan_status(self.server, path.path.split("/")[-1]))
@@ -254,7 +254,7 @@ class Handler(BaseHTTPRequestHandler):
                 options = payload.get("options", {})
                 pages = selected_pages(options.get("pages"))
                 layout = options.get("layout", "auto")
-                if layout not in ("auto", "satb-piano"): raise ValueError("Unknown ensemble preset.")
+                if layout not in ("auto", "satb-piano", "satb", "piano"): raise ValueError("Unknown ensemble preset.")
                 rescan_row = lib.get(payload["id"]) if route == "/api/rescan" else None
                 if rescan_row:
                     if rescan_row["source"] is None: raise ValueError("No original scan is attached.")
@@ -316,7 +316,7 @@ def scan(server, job, command, data, ext, sid=None, options=None):
                            stdout=log, stderr=subprocess.STDOUT, timeout=1200, check=True, **flags)
             books = list(folder.rglob("*.omr"))
             if not books: raise ValueError("Audiveris did not produce a score book. Inspect the recognition log.")
-            if options.get("layout") == "satb-piano": repair_satb_book(books[0])
+            if options.get("layout", "auto") != "auto": repair_satb_book(books[0], options["layout"])
             exported = []
             progress(2, "Exporting recognized notation")
             for _ in range(2):
@@ -359,6 +359,9 @@ def start_or_reuse(port, library, open_browser=True):
                 is_studio = response.headers.get("Server", "").startswith("SolfaStudio/")
                 info = json.load(response)
             same_library = Path(info.get("storage", "")).resolve() == library.path.resolve()
+            if is_studio and same_library and info.get("build") != "2026-11-06-layout":
+                print("An older Studio is running; opening the updated version on the next port.", flush=True)
+                return start_or_reuse(port + 1, library, open_browser)
             if is_studio and same_library:
                 print(f"Solfa Studio is already running: {url}\nOpening the existing workspace.", flush=True)
                 if open_browser:
