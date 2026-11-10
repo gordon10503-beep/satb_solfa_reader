@@ -216,7 +216,7 @@ function tone(pitch,duration,start,sound="Piano",volume=.6) {
   }
   setTimeout(()=>gain.disconnect(),Math.max(0,(end+release-ctx.currentTime)*1000)+100);
 }
-function click(at,accent=false) { tone(accent?94:88,.035,at,"Flute",.5); }
+function click(at,accent=false) { tone(accent && $("metro-accent").checked ? 94 : 88,.035,at,"Flute",.5); }
 function silence() { for(const node of state.nodes)try{node.stop();}catch{}state.nodes.clear(); }
 function position() { return state.playing ? Math.min(state.score.duration,(state.audio.currentTime-state.started)*state.speed) : state.position; }
 async function play() {
@@ -447,6 +447,14 @@ on("restart","click",()=>{pause();state.position=0;lastFollow="";updateTransport
 on("seek","input",e=>{pause();state.position=+e.target.value;lastFollow="";updateTransport();});
 on("tempo","change",async()=>{const wasPlaying=state.playing;pause();$("tempo").value=Math.max(20,Math.min(300,+$("tempo").value||96));state.speed=+$("tempo").value/(state.score?.baseTempo||120);updateTransport();await savePractice();if(wasPlaying)await play();});
 on("master-volume","input",()=>{if(state.master)state.master.gain.setTargetAtTime(+$("master-volume").value*1.3,state.audio.currentTime,.02);});
+$("metro-accent").checked = localStorage.getItem("solfa-metronome-accent") !== "off";
+on("metro-accent","change",()=>localStorage.setItem("solfa-metronome-accent",$("metro-accent").checked ? "on" : "off"));
+document.addEventListener("pointerdown",event=>{
+  if(!$("metro-settings").contains(event.target))$("metro-settings").open=false;
+});
+$("metro-settings").addEventListener("keydown",event=>{
+  if(event.key==="Escape"){$("metro-settings").open=false;$("metro-settings").querySelector("summary").focus();}
+});
 on("metronome","click",async()=>{await audioReady();state.metronome=!state.metronome;state.nextQuarter=undefined;state.position=position();state.metroNext=state.audio.currentTime+.03;$("metronome").setAttribute("aria-pressed",String(state.metronome));ensureScheduler();});
 on("keyboard-btn","click",()=>toggleKeyboard());on("close-keyboard","click",()=>toggleKeyboard(false));
 document.addEventListener("keydown",run(async e=>{
