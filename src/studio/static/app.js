@@ -58,7 +58,7 @@ async function openScore(id, preserve=false) {
   busy(true,"Engraving your score…");
   const result=await api(`/api/score/${id}?mode=${$("solfa-mode").value}&minor=${$("minor-do").checked}&solfa=${$("solfa").checked}`);
   if(generation!==state.openGeneration)return;
-  state.score=result;state.playbackCursor=new PlaybackCursor(result.events,result.measureTimes);activeHighlightIds=new Set();activeBarElement=null;
+  state.score=result;setupLoop(result);state.playbackCursor=new PlaybackCursor(result.events,result.measureTimes);activeHighlightIds=new Set();activeBarElement=null;
   $("reader-format").querySelectorAll("option").forEach(o=>{if(o.value!=="notation")o.disabled=result.sourceType!=="application/pdf";});
   $("reader-format").value=result.sourceType==="application/pdf"?"compare":"notation";state.position=Math.min(oldPosition,result.duration);state.selected=null;document.querySelectorAll("[data-symbol]").forEach(b=>b.disabled=true);
   state.mixer=result.parts.map((p,i)=>({...{sounds:["Piano"],volume:.7,mute:false,solo:false},...(result.meta.mixer?.[i]||{})}));
@@ -232,13 +232,44 @@ async function play() {
   state.scrollStart=null;$("scroll-only").textContent="▷ Scroll without sound";
   if(state.position>=state.score.duration-.01)state.position=0;
   state.speed=+$("tempo").value/state.score.baseTempo;
-  state.started=state.audio.currentTime+.04-state.position/state.speed;state.playing=true;
-  state.eventIndex=state.score.events.findIndex(e=>e.time>=state.position-.001);if(state.eventIndex<0)state.eventIndex=state.score.events.length;
-  // Resume sustained notes when seeking into a note, without retriggering old notes in the scheduler.
-  for(const e of state.score.events)if(e.time<state.position-.001 && e.time+e.duration>state.position)playEvent({...e,time:state.position,duration:e.time+e.duration-state.position});
+  if(state.loop && (state.position<state.loop.start || state.position>=state.loop.end))state.position=state.loop.start;
+  beginPass(state.audio.currentTime+.04);
   state.metroNext=state.audio.currentTime+.04;state.metroCount=0;
   $("play").textContent="Ⅱ";$("play").setAttribute("aria-label","Pause score");ensureScheduler();schedule();
 }
+function beginPass(at) {
+  state.nextQuarter=undefined;
+  state.started=at-state.position/state.speed;state.playing=true;
+  state.eventIndex=state.score.events.findIndex(e=>e.time>=state.position-.001);if(state.eventIndex<0)state.eventIndex=state.score.events.length;
+  // Resume sustained notes when seeking into a note, without retriggering old notes in the scheduler.
+  for(const e of state.score.events)if(e.time<state.position-.001 && e.time+e.duration>state.position)playEvent({...e,time:state.position,duration:e.time+e.duration-state.position});
+}
+function setupLoop(score) {
+  state.loop=null;
+  const seen=new Map();
+  const options=score.measureTimes.map((bar,index)=>{
+    const pass=(seen.get(bar.measure)||0)+1;
+    seen.set(bar.measure,pass);
+    return new Option(String(bar.measure+1)+(pass>1?' (pass '+pass+')':''),index);
+  });
+  $('loop-first').replaceChildren(...options);
+  $('loop-last').replaceChildren(...options.map(option=>option.cloneNode(true)));
+  $('loop-toggle').textContent='Play on repeat';
+  $('loop-toggle').setAttribute('aria-pressed','false');
+  $('loop-first').disabled=$('loop-last').disabled=false;
+}
+on('loop-toggle','click',async()=>{
+  if(state.loop){state.loop=null;pause();setupLoop(state.score);return;}
+  const bars=state.score.measureTimes;
+  const first=+$('loop-first').value,last=+$('loop-last').value;
+  if(!bars[first] || !bars[last] || last<first)throw new Error('Choose an ending bar at or after the starting bar.');
+  const start=bars[first].time,end=bars[last+1]?.time??state.score.duration;
+  if(end<=start)throw new Error('The selected passage has no playback duration.');
+  pause();state.position=start;state.loop={start,end};
+  $('loop-first').disabled=$('loop-last').disabled=true;
+  $('loop-toggle').textContent='End loop';$('loop-toggle').setAttribute('aria-pressed','true');
+  try { await play(); } finally { if(!state.playing)setupLoop(state.score); }
+});
 function refreshMix() {
   if(state.playing){pause();play().catch(e=>toast(e.message,true));}
 }
@@ -246,7 +277,7 @@ function playEvent(e) {
   const m=state.mixer[e.part],solo=state.mixer.some(p=>p.solo);
   if(!m||m.mute||(solo&&!m.solo))return;
   const start=Math.max(state.audio.currentTime,state.started+e.time/state.speed);
-  for(const s of m.sounds)StudioSamples.play(state.audio,state.master,state.nodes,e.pitch,e.duration/state.speed,start,s,m.volume/Math.sqrt(Math.max(1,m.sounds.length)));
+  for(const s of m.sounds)StudioSamples.play(state.audio,state.master,state.nodes,e.pitch,Math.min(e.duration,(state.loop?.end??Infinity)-e.time)/state.speed,start,s,m.volume/Math.sqrt(Math.max(1,m.sounds.length)));
 }
 function ensureScheduler() { if(!state.timer)state.timer=setInterval(schedule,25); }
 function scoreBeatTime(q) {
@@ -262,12 +293,17 @@ function scoreQuarterAt(seconds) {
 function schedule() {
   if(!state.audio)return;const now=state.audio.currentTime;
   if(state.playing) {
-    const horizon=(now+.16-state.started)*state.speed;
+    const end=state.loop?.end??state.score.duration;
+    if(state.loop && position()>=end){
+      state.position=state.loop.start;
+      beginPass(now);
+    }
+    const horizon=Math.min(end,(now+.16-state.started)*state.speed);
     while(state.eventIndex<state.score.events.length && state.score.events[state.eventIndex].time<horizon)playEvent(state.score.events[state.eventIndex++]);
     if(state.metronome) {
       if(state.nextQuarter===undefined)state.nextQuarter=Math.ceil(scoreQuarterAt(position())-.001);
       while(state.nextQuarter<100000) {
-        const t=scoreBeatTime(state.nextQuarter);if(t>=state.score.duration || state.started+t/state.speed>=now+.16)break;
+        const t=scoreBeatTime(state.nextQuarter);if(t>=end || state.started+t/state.speed>=now+.16)break;
         const at=state.started+t/state.speed;if(at>=now-.02)click(Math.max(now,at),state.score.measureTimes.some(m=>Math.abs(m.qstamp-state.nextQuarter)<.001));state.nextQuarter++;
       }
     }
