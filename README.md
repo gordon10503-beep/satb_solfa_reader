@@ -25,6 +25,14 @@ Use `--port 8874` to choose another port or `--data-dir PATH` to use another lib
 - **Organize:** group scores into collections, bookmark bars, and use the score menu or right-click to rename, duplicate, export, share, or move scores to trash.
 - **Conductor preview:** optionally show a local camera window during practice.
 
+## Share a score at rehearsal
+
+Open the score and choose **Share score**. On a compatible device, choose **Choose app or nearby device** to open its share sheet. On iOS, select AirDrop when available. Browsers without file sharing offer a download you can attach manually. An imported PDF is shared under its original filename. Personal annotations stay in the local library. Scores created from MusicXML share as MusicXML.
+
+## Use the arranger’s notation with a PDF
+
+When importing a PDF, choose **Matching MusicXML (optional)** if you have the same arrangement in MusicXML or MXL. Select **Import paired score** to read the original PDF and use the supplied notation for playback and editing. Studio trusts the files you pair, so check that both are the same edition. The combined upload limit is 40 MB. PDF-only imports continue through local recognition.
+
 ## Scanning and accuracy
 
 Recognition is a draft: check parts, bar alignment, time signatures, notes, rhythms and lyrics against the original before relying on playback. Select music pages to skip covers. Clickable SATB choir, SATB + piano and Piano presets consolidate compatible part assignments; use Automatic for orchestral or changing layouts. Structural checks flag possible problems but cannot establish that every note is correct. Playback highlighting currently applies to the **digital notation**, not to matching locations on the original PDF.

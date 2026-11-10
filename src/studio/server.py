@@ -207,7 +207,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path.path == "/api/library":
                 return self.respond({"scores": self.server.library.list(), "scanner": bool(audiveris_path()),
-                                     "storage": str(self.server.library.path), "build": "2026-11-11-cue",
+                                     "storage": str(self.server.library.path), "build": "2026-11-11-share",
                                      "scanJobs": [{"job": job, **scan_status(self.server, job)} for job in list(self.server.jobs)]})
             if path.path.startswith("/api/job/"):
                 return self.respond(scan_status(self.server, path.path.split("/")[-1]))
@@ -251,6 +251,14 @@ class Handler(BaseHTTPRequestHandler):
             lib = self.server.library
             if route == "/api/new":
                 return self.respond({"id": lib.add(new_score(**payload), {"origin": "Composition"})})
+            if route == "/api/import-pair":
+                pdf = base64.b64decode(payload["pdf"], validate=True)
+                notation = base64.b64decode(payload["data"], validate=True)
+                if not pdf.startswith(b"%PDF-") or len(pdf)+len(notation)>MAX_BYTES:
+                    raise ValueError("Choose a PDF and matching MusicXML under 40 MB combined.")
+                name = payload["name"]
+                meta = {"title": name, "sourceFileName": name, "origin": "Paired MusicXML", "playbackReady": True}
+                return self.respond({"id": lib.add(notation, meta, pdf, "application/pdf")})
             if route == "/api/import":
                 data = base64.b64decode(payload["data"], validate=True)
                 return self.respond({"id": lib.add(data, {"title": payload["name"], "sourceFileName": payload["name"]})})
@@ -393,7 +401,7 @@ def start_or_reuse(port, library, open_browser=True):
                 is_studio = response.headers.get("Server", "").startswith("SolfaStudio/")
                 info = json.load(response)
             same_library = Path(info.get("storage", "")).resolve() == library.path.resolve()
-            if is_studio and same_library and info.get("build") != "2026-11-11-cue":
+            if is_studio and same_library and info.get("build") != "2026-11-11-share":
                 print("An older Studio is running; opening the updated version on the next port.", flush=True)
                 return start_or_reuse(port + 1, library, open_browser)
             if is_studio and same_library:

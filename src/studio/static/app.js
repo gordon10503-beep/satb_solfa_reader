@@ -280,16 +280,17 @@ function playEvent(e) {
   for(const s of m.sounds)StudioSamples.play(state.audio,state.master,state.nodes,e.pitch,Math.min(e.duration,(state.loop?.end??Infinity)-e.time)/state.speed,start,s,m.volume/Math.sqrt(Math.max(1,m.sounds.length)));
 }
 function ensureScheduler() { if(!state.timer)state.timer=setInterval(schedule,25); }
-function scoreBeatTime(q) {
-  const map=state.score.timeline;let a=map[0];
-  for(let i=1;i<map.length;i++){const b=map[i];if(b.qstamp>=q && b.qstamp>a.qstamp)return (a.tstamp+(b.tstamp-a.tstamp)*(q-a.qstamp)/(b.qstamp-a.qstamp))/1000;a=b;}
-  return state.score.duration;
+function timelineValue(value, from, to){
+  const map=state.score.timeline;
+  let lo=0,hi=map.length-1;
+  while(lo<hi){const mid=(lo+hi)>>>1;if(map[mid][from]<value)lo=mid+1;else hi=mid;}
+  const end=map[lo];
+  if(!lo||value>=end[from])return end[to];
+  const start=map[lo-1];
+  return start[to]+(end[to]-start[to])*(value-start[from])/(end[from]-start[from]);
 }
-function scoreQuarterAt(seconds) {
-  const map=state.score.timeline;let a=map[0];
-  for(let i=1;i<map.length;i++){const b=map[i];if(b.tstamp>=seconds*1000 && b.tstamp>a.tstamp)return a.qstamp+(b.qstamp-a.qstamp)*(seconds*1000-a.tstamp)/(b.tstamp-a.tstamp);a=b;}
-  return a.qstamp;
-}
+function scoreBeatTime(q){return timelineValue(q,'qstamp','tstamp')/1000;}
+function scoreQuarterAt(seconds){return timelineValue(seconds*1000,'tstamp','qstamp');}
 function schedule() {
   if(!state.audio)return;const now=state.audio.currentTime;
   if(state.playing) {
@@ -390,7 +391,14 @@ async function importFile(file,options={}) {
   const scan=/\.(pdf|png|jpe?g|tiff?)$/i.test(file.name);
   
   busy(true,scan?"Preparing your scan…":"Importing MusicXML…");
-  const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(",")[1]);reader.onerror=reject;reader.readAsDataURL(file);});
+  const encode=file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(",")[1]);reader.onerror=reject;reader.readAsDataURL(file);});
+  const base64=await encode(file);
+  const companion=scan && /\.pdf$/i.test(file.name) && $('companion-xml').files[0];
+  if(companion){
+    if(file.size+companion.size>40*1024*1024)throw new Error('The combined files must fit within 40 MB.');
+    const result=await api('/api/import-pair',{data:await encode(companion),pdf:base64,name:file.name});
+    await library();await openScore(result.id);toast('PDF paired with supplied notation.');return;
+  }
   const result=await api(scan?"/api/scan":"/api/import",{data:base64,name:file.name,options});
   if(!scan){await library();await openScore(result.id);toast("Score imported. Your original file is unchanged.");return;}
   busy(false);await library();await openScore(result.id);
@@ -411,9 +419,9 @@ document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>setView(b.data
 for(const id of ["solfa","solfa-mode","minor-do"])on(id,"change",()=>state.score&&openScore(state.score.id,true));
 on("zoom","change",()=>$("pages").style.setProperty("--zoom",$("zoom").value));
 on("import-btn","click",()=>$("file-input").click());
-on("file-input","change",async e=>{const file=e.target.files[0];e.target.value="";if(file&&/\.(pdf|png|jpe?g|tiff?)$/i.test(file.name)){pendingScan=file;$("scan-dialog").showModal();}else await importFile(file);});
+on("file-input","change",async e=>{const file=e.target.files[0];e.target.value="";if(file&&/\.(pdf|png|jpe?g|tiff?)$/i.test(file.name)){pendingScan=file;$("companion-xml").value="";updateImportMode();$("companion-field").hidden=!/\.pdf$/i.test(file.name);$("scan-dialog").showModal();}else await importFile(file);});
 on("bookmark-btn","click",bookmark);on("bookmark-add","click",bookmark);
-on("export-btn","click",async()=>{if(!state.score)return;const r=await fetch(`/api/xml/${state.score.id}`);const url=URL.createObjectURL(await r.blob());const a=document.createElement("a");a.href=url;a.download=state.score.title.replace(/[<>:"/\\|?*]/g,"_")+".musicxml";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+on("share-score","click",()=>scoreAction(state.score.id,"share"));
 on("print-btn","click",()=>window.print());
 on("compose-part","change",()=>fillBars(0));on("compose-bar","change",updateCapacity);
 on("entry-keyboard","click",()=>{toggleKeyboard(true);$("keyboard-entry").checked=true;});
@@ -509,8 +517,21 @@ async function scoreAction(id,action){
     if(!response.ok)throw new Error('Could not export this score.');
     const blob=await response.blob(),name=original?(item.sourceFileName||item.title):item.title.replace(/\.[^.]+$/,'')+'.musicxml';
     const file=new File([blob],name,{type:blob.type});
-    if(action==='share'&&navigator.canShare?.({files:[file]})){
-      try{await navigator.share({files:[file],title:item.title});return;}catch(e){if(e.name==='AbortError')return;}
+    if(action==='share'){
+      const native=!!navigator.share && !!navigator.canShare?.({files:[file]});
+      $('share-name').textContent=name;
+      $('share-description').textContent=original?'Shares the original file. Personal annotations stay in Studio.':'Shares editable MusicXML. The recipient needs a compatible score reader.';
+      const button=$('send-file');
+      button.textContent=native?'Choose app or nearby device…':'Download file to share';
+      button.onclick=run(async()=>{
+        if(native){
+          try{await navigator.share({files:[file],title:item.title});}
+          catch(error){if(error.name==='AbortError')return;downloadScore(file);toast('Saved a copy to share manually.');}
+        }else downloadScore(file);
+        $('share-dialog').close();
+      });
+      $('share-dialog').showModal();
+      return;
     }
     const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);toast('Downloaded. Attach this file to share it. Annotations are stored separately.');
   }
@@ -548,7 +569,7 @@ async function pollScans(){
 on("apply-meter","click",()=>edit("meter",{measure:+$("meter-bar").value-1,beats:+$("meter-beats").value,beat_type:+$("meter-unit").value,all_parts:true}));
 
 let pendingScan=null;
-on("rescan-btn","click",()=>{if(!state.score?.hasSource){toast("No original scan is attached.");return;}pendingScan=state.score.id;$("scan-dialog").showModal();});
+on("rescan-btn","click",()=>{if(!state.score?.hasSource){toast("No original scan is attached.");return;}pendingScan=state.score.id;$("companion-xml").value="";updateImportMode();$("companion-field").hidden=true;$("scan-dialog").showModal();});
 on("scan-form","submit",async e=>{
   e.preventDefault();const options={pages:$("scan-pages").value,cueNotes:$("scan-cues").value,layout:document.querySelector('input[name="scan-ensemble"]:checked').value};
   if(typeof pendingScan==='string'){
@@ -600,3 +621,17 @@ on('restore-phrase-draft','click',()=>{
   if($('phrase').value.trim() && !confirm('Replace the current unsaved phrase with the saved draft?'))return;
   $('compose-part').value=part;fillBars(draft.bar);$('phrase').value=draft.phrase;renderDraft();toast('Draft restored; review it before replacing the score bar.');
 });
+
+function downloadScore(file){
+  const url=URL.createObjectURL(file),link=document.createElement('a');
+  link.href=url;link.download=file.name;link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+
+function updateImportMode(){
+  const paired=Boolean($('companion-xml').files.length);
+  $('scan-engine-settings').hidden=paired;
+  $('scan-pages').closest('label').hidden=paired;
+  $('scan-submit').textContent=paired?'Import paired score':'Start scan';
+}
+on('companion-xml','change',updateImportMode);
