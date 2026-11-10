@@ -28,6 +28,8 @@ from urllib.parse import parse_qs, urlparse
 from .document import (MAX_BYTES, append_bar, edit_symbol, move_part, rename_part, edit_note, edit_meter, engrave, inspect,
                        new_score, read_xml, replace_bar, xml_bytes)
 
+from PIL import Image
+from .scan_preprocess import prepare_for_omr
 from .pdf_meter import recover_opening_meter
 from .scan_options import selected_pages, repair_satb_book
 
@@ -204,7 +206,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path.path == "/api/library":
                 return self.respond({"scores": self.server.library.list(), "scanner": bool(audiveris_path()),
-                                     "storage": str(self.server.library.path), "build": "2026-11-11-pdf-meter",
+                                     "storage": str(self.server.library.path), "build": "2026-11-11-preprocess",
                                      "scanJobs": [{"job": job, **scan_status(self.server, job)} for job in list(self.server.jobs)]})
             if path.path.startswith("/api/job/"):
                 return self.respond(scan_status(self.server, path.path.split("/")[-1]))
@@ -326,8 +328,14 @@ def scan(server, job, command, data, ext, sid=None, options=None):
     flags = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
     try:
         with (folder / "recognition.log").open("w", encoding="utf-8") as log:
+            progress(1, "Checking page orientation and staff alignment")
+            try:
+                recognition_source = prepare_for_omr(source, options.get("pages") or ())
+            except (OSError, ValueError, RuntimeError, Image.DecompressionBombError) as exc:
+                print(f"Page preparation unavailable; continuing with original: {exc}", file=log)
+                recognition_source = source
             progress(1, "Recognizing music · large scores can take several minutes")
-            subprocess.run([command, "-batch", "-save", "-output", str(folder), *sheet_args, "--", str(source)],
+            subprocess.run([command, "-batch", "-save", "-output", str(folder), *sheet_args, "--", str(recognition_source)],
                            stdout=log, stderr=subprocess.STDOUT, timeout=1200, check=True, **flags)
             books = list(folder.rglob("*.omr"))
             if not books: raise ValueError("Audiveris did not produce a score book. Inspect the recognition log.")
@@ -380,7 +388,7 @@ def start_or_reuse(port, library, open_browser=True):
                 is_studio = response.headers.get("Server", "").startswith("SolfaStudio/")
                 info = json.load(response)
             same_library = Path(info.get("storage", "")).resolve() == library.path.resolve()
-            if is_studio and same_library and info.get("build") != "2026-11-11-pdf-meter":
+            if is_studio and same_library and info.get("build") != "2026-11-11-preprocess":
                 print("An older Studio is running; opening the updated version on the next port.", flush=True)
                 return start_or_reuse(port + 1, library, open_browser)
             if is_studio and same_library:
