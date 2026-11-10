@@ -422,7 +422,10 @@ on("import-btn","click",()=>$("file-input").click());
 on("file-input","change",async e=>{const file=e.target.files[0];e.target.value="";if(file&&/\.(pdf|png|jpe?g|tiff?)$/i.test(file.name)){pendingScan=file;$("companion-xml").value="";updateImportMode();$("companion-field").hidden=!/\.pdf$/i.test(file.name);$("scan-dialog").showModal();}else await importFile(file);});
 on("bookmark-btn","click",bookmark);on("bookmark-add","click",bookmark);
 on("share-score","click",()=>scoreAction(state.score.id,"share"));
-on("print-btn","click",()=>window.print());
+on("print-btn","click",()=>{
+  document.title=state.score.title;
+  window.print();
+});
 on("compose-part","change",()=>fillBars(0));on("compose-bar","change",updateCapacity);
 on("entry-keyboard","click",()=>{toggleKeyboard(true);$("keyboard-entry").checked=true;});
 on("entry-rest","click",()=>addPhrase("R"));
@@ -488,7 +491,7 @@ function closeScoreMenu(){ $('score-menu').hidden=true;menuReturn?.focus(); }
 function openScoreMenu(id,x,y){
   menuScore=id;menuReturn=document.activeElement;
   const item=state.library.find(s=>s.id===id);if(!item)return;
-  const actions=item.trashed?[['restore','Restore score']]:[['open','Open'],['rename','Rename'],['group','Move to collection…'],['ungroup','Remove from collection'],['duplicate','Duplicate'],['share','Share / download original'],['export','Export MusicXML'],['trash','Move to Trash']];
+  const actions=item.trashed?[['restore','Restore score']]:[['open','Open'],['rename','Rename'],['group','Move to collection…'],['ungroup','Remove from collection'],['duplicate','Duplicate'],['share','Share / download original'],['export','Export MusicXML'],['bundle','Export score folder (.zip)'],['trash','Move to Trash']];
   $('score-menu').innerHTML=actions.map(([action,label])=>`<button role="menuitem" data-action="${action}">${label}</button>`).join('');
   const menu=$('score-menu');menu.hidden=false;menu.style.left=Math.max(8,Math.min(x,innerWidth-250))+'px';menu.style.top=Math.max(8,Math.min(y,innerHeight-menu.offsetHeight-8))+'px';
   menu.querySelectorAll('button').forEach(b=>b.onclick=run(()=>scoreAction(id,b.dataset.action)));menu.querySelector('button').focus();
@@ -510,6 +513,15 @@ async function scoreAction(id,action){
   if(action==='ungroup')return manageMeta(id,{group:'Ungrouped'});
   if(action==='trash'||action==='restore'){await manageMeta(id,{trashed:action==='trash'});if(state.score?.id===id)showLibrary();toast(action==='trash'?'Moved to Trash. You can restore it from the sidebar.':'Score restored.');return;}
   if(action==='duplicate'){await state.saving;const result=await api('/api/duplicate',{id,revision:item.revision});await library();state.trash=false;state.group=null;showLibrary();renderLibrary();toast('Independent copy created.');return;}
+  if(action==='bundle'){
+    const response=await fetch('/api/bundle/'+id);
+    if(!response.ok)throw new Error('Could not prepare score folder.');
+    downloadScore(new File([await response.blob()],item.title.replace(/[<>:"/\\|?*]/g,'_')+'.zip'));return;
+  }
+  if(action==='share'){
+    $('share-name').textContent=item.title;$('share-description').textContent='Preparing file…';
+    $('send-file').disabled=true;$('share-dialog').showModal();
+  }
   if(action==='share'||action==='export'){
     let response=action==='share'?await fetch(`/api/source/${id}`):null;
     const original=response?.ok;
@@ -518,6 +530,8 @@ async function scoreAction(id,action){
     const blob=await response.blob(),name=original?(item.sourceFileName||item.title):item.title.replace(/\.[^.]+$/,'')+'.musicxml';
     const file=new File([blob],name,{type:blob.type});
     if(action==='share'){
+      if(!$('share-dialog').open || $('share-name').textContent!==item.title)return;
+      $('send-file').disabled=false;
       const native=!!navigator.share && !!navigator.canShare?.({files:[file]});
       $('share-name').textContent=name;
       $('share-description').textContent=original?'Shares the original file. Personal annotations stay in Studio.':'Shares editable MusicXML. The recipient needs a compatible score reader.';
@@ -530,7 +544,6 @@ async function scoreAction(id,action){
         }else downloadScore(file);
         $('share-dialog').close();
       });
-      $('share-dialog').showModal();
       return;
     }
     const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);toast('Downloaded. Attach this file to share it. Annotations are stored separately.');
@@ -571,7 +584,7 @@ on("apply-meter","click",()=>edit("meter",{measure:+$("meter-bar").value-1,beats
 let pendingScan=null;
 on("rescan-btn","click",()=>{if(!state.score?.hasSource){toast("No original scan is attached.");return;}pendingScan=state.score.id;$("companion-xml").value="";updateImportMode();$("companion-field").hidden=true;$("scan-dialog").showModal();});
 on("scan-form","submit",async e=>{
-  e.preventDefault();const options={pages:$("scan-pages").value,cueNotes:$("scan-cues").value,layout:document.querySelector('input[name="scan-ensemble"]:checked').value};
+  e.preventDefault();const options={pages:$("scan-pages").value,language:$("scan-language").value,cueNotes:$("scan-cues").value,layout:document.querySelector('input[name="scan-ensemble"]:checked').value};
   if(typeof pendingScan==='string'){
     const result=await api('/api/rescan',{id:pendingScan,options});$('scan-dialog').close();
     if(result.job)syncScanJobs([{job:result.job,id:result.id,name:state.score.title,status:'running',stage:0,message:'Preparing rescan',elapsed:0}]);else toast('Audiveris is unavailable.');
