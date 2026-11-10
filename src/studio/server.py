@@ -31,6 +31,7 @@ from .document import (MAX_BYTES, append_bar, edit_symbol, move_part, rename_par
 from PIL import Image
 from .scan_preprocess import prepare_for_omr
 from .pdf_meter import recover_opening_meter
+from .recognition_profile import recognition_flags
 from .scan_options import selected_pages, repair_satb_book
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -206,7 +207,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path.path == "/api/library":
                 return self.respond({"scores": self.server.library.list(), "scanner": bool(audiveris_path()),
-                                     "storage": str(self.server.library.path), "build": "2026-11-11-preprocess",
+                                     "storage": str(self.server.library.path), "build": "2026-11-11-cue",
                                      "scanJobs": [{"job": job, **scan_status(self.server, job)} for job in list(self.server.jobs)]})
             if path.path.startswith("/api/job/"):
                 return self.respond(scan_status(self.server, path.path.split("/")[-1]))
@@ -256,6 +257,8 @@ class Handler(BaseHTTPRequestHandler):
             if route in ("/api/scan", "/api/rescan"):
                 options = payload.get("options", {})
                 pages = selected_pages(options.get("pages"))
+                cue_mode = options.get("cueNotes", "auto")
+                if cue_mode not in ("auto", "on", "off"): raise ValueError("Unknown cue-note setting.")
                 layout = options.get("layout", "auto")
                 if layout not in ("auto", "satb-piano", "satb", "piano"): raise ValueError("Unknown ensemble preset.")
                 rescan_row = lib.get(payload["id"]) if route == "/api/rescan" else None
@@ -273,7 +276,7 @@ class Handler(BaseHTTPRequestHandler):
                 job = uuid.uuid4().hex
                 self.server.jobs[job] = {"status": "running", "stage": 0, "started": time.time(), "id": sid,
                                          "name": payload["name"], "message": "Preparing scan"}
-                threading.Thread(target=scan, args=(self.server, job, command, data, ext, sid, {"pages": pages, "layout": layout}), daemon=True).start()
+                threading.Thread(target=scan, args=(self.server, job, command, data, ext, sid, {"pages": pages, "layout": layout, "cueNotes": cue_mode}), daemon=True).start()
                 return self.respond({"job": job, "id": sid})
             sid, revision = payload["id"], int(payload["revision"])
             row = lib.get(sid)
@@ -335,7 +338,9 @@ def scan(server, job, command, data, ext, sid=None, options=None):
                 print(f"Page preparation unavailable; continuing with original: {exc}", file=log)
                 recognition_source = source
             progress(1, "Recognizing music · large scores can take several minutes")
-            subprocess.run([command, "-batch", "-save", "-output", str(folder), *sheet_args, "--", str(recognition_source)],
+            flags_for_book = recognition_flags(options.get("cueNotes", "auto"), data, ext, options.get("pages"))
+            print("Cue recognition:", flags_for_book or "engine default", file=log, flush=True)
+            subprocess.run([command, "-batch", "-step", "PAGE", "-save", *flags_for_book, "-output", str(folder), *sheet_args, "--", str(recognition_source)],
                            stdout=log, stderr=subprocess.STDOUT, timeout=1200, check=True, **flags)
             books = list(folder.rglob("*.omr"))
             if not books: raise ValueError("Audiveris did not produce a score book. Inspect the recognition log.")
@@ -343,7 +348,7 @@ def scan(server, job, command, data, ext, sid=None, options=None):
             exported = []
             progress(2, "Exporting recognized notation")
             for _ in range(2):
-                subprocess.run([command, "-batch", "-export", *sheet_args, "--", str(books[0])],
+                subprocess.run([command, "-batch", "-export", *flags_for_book, *sheet_args, "--", str(books[0])],
                                stdout=log, stderr=subprocess.STDOUT, timeout=1200, check=False, **flags)
                 exported = list(folder.rglob("*.mxl")) + list(folder.rglob("*.musicxml"))
                 if exported: break
@@ -388,7 +393,7 @@ def start_or_reuse(port, library, open_browser=True):
                 is_studio = response.headers.get("Server", "").startswith("SolfaStudio/")
                 info = json.load(response)
             same_library = Path(info.get("storage", "")).resolve() == library.path.resolve()
-            if is_studio and same_library and info.get("build") != "2026-11-11-preprocess":
+            if is_studio and same_library and info.get("build") != "2026-11-11-cue":
                 print("An older Studio is running; opening the updated version on the next port.", flush=True)
                 return start_or_reuse(port + 1, library, open_browser)
             if is_studio and same_library:
