@@ -411,3 +411,12 @@ def test_rename_preserves_part_identity_and_undo(tmp_path):
     assert inspect(read_xml(saved['xml']))['parts'][0]['name'] == 'Solo flute'
     restored = lib.update(sid, saved['revision'], undo=True)
     assert restored['xml'] == row['xml']
+
+def test_move_part_preserves_music_and_definition_order():
+    from src.studio.document import move_part
+    original = new_score(template="satb", bars=2)
+    parts = read_xml(original).findall("part")
+    moved = read_xml(move_part(original, 1, -1))
+    expected = [parts[1], parts[0], *parts[2:]]
+    assert [ET.tostring(p) for p in moved.findall("part")] == [ET.tostring(p) for p in expected]
+    assert [p.get("id") for p in moved.findall("part-list/score-part")] == [p.get("id") for p in expected]

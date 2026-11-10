@@ -25,7 +25,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from .document import (MAX_BYTES, append_bar, edit_symbol, rename_part, edit_note, edit_meter, engrave, inspect,
+from .document import (MAX_BYTES, append_bar, edit_symbol, move_part, rename_part, edit_note, edit_meter, engrave, inspect,
                        new_score, read_xml, replace_bar, xml_bytes)
 
 from .scan_options import selected_pages, repair_satb_book
@@ -203,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path.path == "/api/library":
                 return self.respond({"scores": self.server.library.list(), "scanner": bool(audiveris_path()),
-                                     "storage": str(self.server.library.path), "build": "2026-11-06-editor",
+                                     "storage": str(self.server.library.path), "build": "2026-11-10-layout",
                                      "scanJobs": [{"job": job, **scan_status(self.server, job)} for job in list(self.server.jobs)]})
             if path.path.startswith("/api/job/"):
                 return self.respond(scan_status(self.server, path.path.split("/")[-1]))
@@ -283,8 +283,20 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "/api/undo": result = lib.update(sid, revision, undo=True)
             elif route == "/api/edit":
                 action = payload["action"]
+                metadata = None
                 if action == "note": data = edit_note(row["xml"], **payload["values"])
                 elif action == "symbol": data = edit_symbol(row["xml"], **payload["values"])
+                elif action == "move-part":
+                    values = payload["values"]
+                    data = move_part(row["xml"], **values)
+                    first = values["part"]
+                    second = first + values["direction"]
+                    mixer = list(row["meta"].get("mixer") or [])
+                    if mixer:
+                        while len(mixer) <= max(first, second):
+                            mixer.append({})
+                        mixer[first], mixer[second] = mixer[second], mixer[first]
+                        metadata = {"mixer": mixer}
                 elif action == "rename-part": data = rename_part(row["xml"], **payload["values"])
                 elif action == "bar": data = replace_bar(row["xml"], **payload["values"])
                 elif action == "append": data = append_bar(row["xml"])
@@ -293,7 +305,7 @@ class Handler(BaseHTTPRequestHandler):
                 else: raise ValueError("Unknown edit action.")
                 # Validate engraving before making the new document durable.
                 rendered(data, "movable", False, True)
-                result = lib.update(sid, revision, data=data)
+                result = lib.update(sid, revision, data=data, metadata=metadata)
             else: raise ValueError("Unknown operation.")
             self.respond({"id": sid, "revision": result["revision"], "meta": result["meta"]})
         except Exception as exc:
@@ -361,7 +373,7 @@ def start_or_reuse(port, library, open_browser=True):
                 is_studio = response.headers.get("Server", "").startswith("SolfaStudio/")
                 info = json.load(response)
             same_library = Path(info.get("storage", "")).resolve() == library.path.resolve()
-            if is_studio and same_library and info.get("build") != "2026-11-06-editor":
+            if is_studio and same_library and info.get("build") != "2026-11-10-layout":
                 print("An older Studio is running; opening the updated version on the next port.", flush=True)
                 return start_or_reuse(port + 1, library, open_browser)
             if is_studio and same_library:

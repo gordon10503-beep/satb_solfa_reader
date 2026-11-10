@@ -488,3 +488,23 @@ def rename_part(data, part, name):
     label.text = name
     for abbreviation in definition.findall("part-abbreviation"): abbreviation.text = name
     return xml_bytes(root)
+
+
+def move_part(data, part, direction):
+    root = read_xml(data)
+    parts = root.findall("part")
+    destination = part + direction
+    if direction not in (-1, 1) or not 0 <= part < len(parts) or not 0 <= destination < len(parts):
+        raise ValueError("Choose an adjacent instrument.")
+    definitions = root.find("part-list")
+    if definitions.find("part-group") is not None:
+        raise ValueError("This score has instrument groups. Reorder grouped instruments in the MusicXML editor.")
+    by_id = {item.get("id"): item for item in definitions.findall("score-part")}
+    parts[part], parts[destination] = parts[destination], parts[part]
+    for item in parts:
+        root.remove(item)
+        definitions.remove(by_id[item.get("id")])
+    for item in parts:
+        root.append(item)
+        definitions.append(by_id[item.get("id")])
+    return xml_bytes(root)

@@ -527,7 +527,20 @@ function renderInstrumentNames(){
     const row=document.createElement('div');row.className='field-row';
     const input=document.createElement('input');input.value=part.name;input.maxLength=100;input.setAttribute('aria-label',`Name for part ${index+1}`);
     const button=document.createElement('button');button.className='button small';button.textContent='Rename';
-    button.onclick=run(()=>edit('rename-part',{part:index,name:input.value}));row.append(input,button);$('instrument-names').append(row);
+    button.onclick=run(()=>edit('rename-part',{part:index,name:input.value}));row.append(input,button);
+    for(const direction of [-1, 1]){
+      const move=document.createElement('button');
+      move.className='button small';
+      move.textContent=direction<0?'↑':'↓';
+      move.setAttribute('aria-label', 'Move '+part.name+(direction<0?' up':' down'));
+      move.disabled=index+direction<0 || index+direction>=state.score.parts.length;
+      move.onclick=run(async()=>{
+        if(mixSave){clearTimeout(mixSave);mixSave=null;await queueMeta({mixer:structuredClone(state.mixer)});}
+        await edit('move-part',{part:index,direction});
+      });
+      row.append(move);
+    }
+    $('instrument-names').append(row);
   });
 }
 document.querySelectorAll('[data-symbol]').forEach(button=>button.onclick=run(async()=>{
